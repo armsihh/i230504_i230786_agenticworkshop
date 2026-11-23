@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 doubleaads.db
 .pytest_cache/
+.hypothesis/

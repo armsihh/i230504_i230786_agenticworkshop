@@ -17,7 +17,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 IS_PG = DATABASE_URL.startswith(("postgres://", "postgresql://"))
-SQLITE_PATH = Path(__file__).resolve().parent.parent / "doubleaads.db"
+SQLITE_PATH = Path(os.getenv("DOUBLEAADS_SQLITE") or Path(__file__).resolve().parent.parent / "doubleaads.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS campaigns (

@@ -5,6 +5,7 @@ so a prompt like "show me user B's campaigns" can't reach another user's data.
 Tools return short text: fewer tokens back into the model means lower cost.
 """
 import json
+import re
 
 from langchain.tools import ToolRuntime, tool
 from langgraph.types import interrupt
@@ -12,12 +13,23 @@ from pydantic import BaseModel, Field
 
 from app import ads
 from app.context import AdContext
+from app.textnorm import normalize
 
 
 class AdCopy(BaseModel):
     headline: str = Field(description="Short headline")
     body: str = Field(description="Main ad text")
     cta: str = Field(description="Call to action button text, e.g. 'Shop now'")
+
+
+_YES = re.compile(r"^(yes|yep|yeah|yup|y|sure|ok|okay|confirm(ed)?|approve(d)?|go ahead|do it|launch( it)?)\b")
+_HEDGE = re.compile(r"\b(no|not|don'?t|dont|wait|later|but|stop|cancel|hold|maybe|unless|until)\b")
+
+
+def is_approval(answer) -> bool:
+    """Spending money needs a clear yes. 'yes please' launches; 'yes but not now', 'maybe', '' don't."""
+    text = re.sub(r"[^\w\s']", " ", normalize(str(answer or "")).lower()).strip()
+    return bool(_YES.match(text)) and not _HEDGE.search(text)
 
 
 def _safe(fn):
@@ -132,7 +144,7 @@ def launch_campaign(campaign_id: str, runtime: ToolRuntime[AdContext]) -> str:
                             "question": f"Launch '{c['name']}' on {c['platform']}? It will spend up to "
                                         f"${c['daily_budget']:.0f}/day for {c['days']} days (${total:,.0f} total). "
                                         f"Reply yes to confirm."})
-        if str(answer).strip().lower() not in ("yes", "y", "confirm", "approve", "approved"):
+        if not is_approval(answer):
             return "Launch cancelled by the owner. Nothing was spent."
         ads.launch(uid, campaign_id)
         return f"Campaign {campaign_id} is now live (simulated: no real ad account is connected)."

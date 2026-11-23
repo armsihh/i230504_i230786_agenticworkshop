@@ -1,6 +1,7 @@
 """Ad creatives as SVG banners, drawn from the ad copy. No image model: free and instant."""
+import re
 import textwrap
-from html import escape
+from html import escape as _escape
 
 SIZES = {"square": (1080, 1080), "story": (1080, 1920), "landscape": (1200, 628)}
 THEMES = {
@@ -9,6 +10,14 @@ THEMES = {
     "minimal": {"bg": "#ffffff", "fg": "#111827", "accent": "#2563eb"},
     "warm":    {"bg": "#fff7ed", "fg": "#7c2d12", "accent": "#ea580c"},
 }
+
+# Characters XML 1.0 forbids: control characters, lone surrogates, U+FFFE/U+FFFF
+_XML_INVALID = re.compile("[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\ud800-\\udfff\\ufffe\\uffff]")
+
+
+def escape(text: str) -> str:
+    """HTML-escape and drop characters XML forbids (one of them makes the whole SVG unreadable)."""
+    return _escape(_XML_INVALID.sub("", text))
 
 
 def render_svg(headline: str, body: str, cta: str, size: str = "square", theme: str = "bold") -> str:

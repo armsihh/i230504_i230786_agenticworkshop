@@ -28,6 +28,7 @@ from langchain.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.context import MODEL
 from app.db import log_event
+from app.textnorm import deleet, normalize
 
 CANARY = "DAA-7Q41"   # appears only in the system prompt; if a reply contains it, the prompt leaked
 
@@ -54,27 +55,54 @@ Style: short, friendly, plain English. Use bullet points for ad variants. No lon
 
 # ── input guard (deterministic, zero tokens) ──
 
+INSTRUCTION_WORDS = r"(instructions?|rules|prompts?|guidelines|directions|directives|hidayat|hidayaat)"
+
 INJECTION = re.compile("|".join([
-    r"\b(ignore|disregard|forget|override)\b.{0,30}\b(previous|prior|above|earlier|all|your|the)\b.{0,20}"
-    r"\b(instructions?|rules|prompts?|guidelines|directions)\b",
-    r"\b(reveal|show|print|repeat|leak|output|tell me|what (is|are))\b.{0,20}\b(system prompt|your (instructions|"
-    r"prompt|rules|guidelines)|hidden (prompt|instructions))\b",
-    r"\byou are now\b", r"\bdeveloper mode\b", r"\bjailbr(eak|oken)\b", r"\bdo anything now\b",
+    # override attempts
+    r"\b(ignore|disregard|forget|override)\b.{0,30}\b(previous|prior|above|earlier|all|your|the|saari|sari)\b.{0,20}"
+    rf"\b{INSTRUCTION_WORDS}\b",
+    rf"\b{INSTRUCTION_WORDS}\b.{{0,25}}\b(ignore|bhool|bhul|chhor|chor|nazarandaz)",            # Roman Urdu order
+    r"\b(ignore|disregard|forget)\b.{0,15}\b(everything|all)\b.{0,10}\b(above|before|said|so far)\b",
+    # prompt extraction
+    r"\b(reveal|show|print|repeat|leak|output|tell me|what (is|are|were))\b.{0,20}\b(system prompt|your (instructions|"
+    r"prompt|rules|guidelines)|hidden (prompt|instructions)|initial prompt)\b",
+    r"\bwhat (were|was|have) you (been )?(told|instructed|given|programmed)\b",
+    r"\b(print|repeat|output|copy|recite)\b.{0,25}\b(everything|text|all|words)\b.{0,30}"
+    r"\b(above|before|between|first message|verbatim|so far)\b",
+    # role-play jailbreaks ("You are now my ad agency" is fine)
+    r"\byou are now\b(?!\s+(my|our|the)\s+(ad|ads|advertising|marketing)\b)",
+    r"\bdeveloper mode\b", r"\bjailbr(eak|oken)\b", r"\bdo anything now\b",
     r"\b(act|behave|respond) as\b.{0,20}\b(unrestricted|unfiltered|evil|no rules|different (ai|assistant))\b",
     r"</?\s*(system|instructions?|admin)\s*>", r"\[\s*(system|admin)\s*\]",
-    r"\b(other|another|all|every)\b.{0,10}\b(users?|customers?|clients?|businesses|accounts?)\b.{0,15}"
+    # other people's data
+    r"\b(other|another|all|every)\b.{0,10}\b(users?|customers?|clients?|businesses|accounts?)'?s?\b.{0,15}"
     r"\b(data|campaigns?|ads|results|details|info)\b",
+    r"\b(campaigns?|ads|data|results)\b.{0,10}\bfor (user|account|customer|business)\s+(?!acquisition|growth|"
+    r"engagement|base|retention)\w+",
+    r"\b(business|shop|store|company|brand) next door\b",
     r"\buser_?id\b", r"\b(switch|change|log ?in as|impersonate)\b.{0,15}\b(user|account)\b",
+    # approval bypass
     r"\b(bypass|skip|disable)\b.{0,20}\b(approval|confirmation|limit|safety|guard|check)\b",
+    r"\b(pre-?approved?|pre-?approve[sd]?|already (said|approved|confirmed|agreed)|(owner|user|i) (has )?said yes)\b",
+    r"\b(don'?t|do not|no need to|without)\b.{0,20}\b(confirm\w*|approv\w*|permission)\b",
 ]), re.I)
 
+# Fake role headers only make sense at the start of a line, so this runs on the un-flattened text
+ROLE_HEADER = re.compile(r"(?m)^\s*(#{1,6}\s*)?(system|admin|developer)\s*(:|$)", re.I)
+
 OFF_TOPIC = re.compile("|".join([
-    r"\b(write|compose|make)\b.{0,15}\b(poem|essay|story|homework|assignment|thesis|cover letter|resume)\b",
+    r"\b(write|compose|make)\b.{0,15}\b(poem|haiku|limerick|sonnet|essay|story|homework|assignment|thesis|"
+    r"cover letter|resume)\b",
+    r"\b(tell|say)\b.{0,10}\b(joke|riddle)\b",
     r"\b(solve|integrate|differentiate)\b.{0,30}\b(equation|integral|derivative|math|homework)\b",
+    r"\b(homework|calculus|algebra|physics|chemistry)\b",
+    r"\btranslate\b.{0,40}\b(essay|paragraph|assignment|homework)\b",
     r"\b(write|debug|fix|explain)\b.{0,15}\b(code|python|javascript|java|c\+\+|sql|program|function|script)\b",
     r"\b(weather|horoscope|lottery|bitcoin price|stock price|cricket score|football score)\b",
+    r"\bcapital of\b", r"\b(election|prime minister|president|politics|political)\b",
     r"\b(diagnose|medical advice|legal advice|tax advice|investment advice)\b",
-    r"\b(hack|malware|phishing|ddos|exploit)\b",
+    r"\b(malware|phishing|ddos|exploit|keylogger)\b",
+    r"\bhack(ing)?\b.{0,20}\b(account|password|wifi|phone|website|someone|instagram|facebook)\b",
 ]), re.I)
 
 # A message that matches OFF_TOPIC but clearly talks about ads is fine ("write a short story-style ad")
@@ -95,9 +123,10 @@ def classify(text: str) -> str | None:
     """Return 'injection', 'off_topic', 'too_long' or None (allowed). Pure function: easy to test."""
     if len(text) > MAX_MESSAGE_CHARS:
         return "too_long"
-    if INJECTION.search(text):
+    flat = normalize(text)
+    if ROLE_HEADER.search(text) or INJECTION.search(flat) or INJECTION.search(deleet(flat)):
         return "injection"
-    if OFF_TOPIC.search(text) and not ON_TOPIC.search(text):
+    if OFF_TOPIC.search(flat) and not ON_TOPIC.search(flat):
         return "off_topic"
     return None
 
@@ -124,10 +153,25 @@ def input_guard(state, runtime):
 
 # ── output guard ──
 
+def _shingles(text: str, n: int = 8) -> set[tuple[str, ...]]:
+    words = re.findall(r"[a-z0-9']+", normalize(text).lower())
+    return {tuple(words[i:i + n]) for i in range(len(words) - n + 1)}
+
+
+# Only the confidential rules are fingerprinted. The opening self-description ("an AI ad agency for small
+# local businesses...") is public: the model says it all the time and that must not count as a leak.
+_PROMPT_SHINGLES = _shingles(SYSTEM_PROMPT[SYSTEM_PROMPT.index("How you work:"):])
+
+
+def leaks_prompt(reply: str) -> bool:
+    """True if the reply contains the canary or quotes 8+ consecutive words of the system prompt."""
+    return CANARY in reply or bool(_shingles(reply) & _PROMPT_SHINGLES)
+
+
 @after_agent
 def output_guard(state, runtime):
     last = state["messages"][-1]
-    if isinstance(last, AIMessage) and CANARY in (last.text or ""):
+    if isinstance(last, AIMessage) and leaks_prompt(last.text or ""):
         log_event(runtime.context.user_id, "blocked_prompt_leak", last.text)
         # Same id = replace the message in state (add_messages reducer), not append
         return {"messages": [AIMessage(INJECTION_REPLY, id=last.id)]}

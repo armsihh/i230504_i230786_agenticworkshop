@@ -7,6 +7,7 @@ import math
 import re
 
 from app.db import execute, new_id, now, query
+from app.textnorm import normalize
 
 # Platform rules and rough industry benchmarks (USD). Benchmarks are planning assumptions,
 # not guarantees: the estimate tool says so in its output.
@@ -19,6 +20,8 @@ PLATFORMS = {
 }
 GOALS = {"awareness", "traffic", "leads", "sales"}
 MAX_DAILY_BUDGET = 1000.0   # above this, refuse: a typo like 50000 should never get through
+MAX_VARIANTS = 10           # per campaign: A to J
+TEXT_LIMITS = {"name": 100, "product": 300, "audience": 300}
 
 # Claims ad platforms reject or that mislead customers
 BANNED = [
@@ -35,18 +38,40 @@ class AdError(ValueError):
     """A problem the agent should explain to the user (bad input, not found, policy)."""
 
 
+def _number(value, what):
+    """Reject NaN and infinity: `nan <= x` is always False, so they slip past range checks and corrupt the DB."""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        raise AdError(f"{what} must be a number.") from None
+    if not math.isfinite(value):
+        raise AdError(f"{what} must be a real number.")
+    return value
+
+
+def _text(value, what):
+    value = (value or "").strip()
+    if not value:
+        raise AdError(f"{what} can't be empty.")
+    if len(value) > TEXT_LIMITS[what]:
+        raise AdError(f"{what} is too long (max {TEXT_LIMITS[what]} characters).")
+    return value
+
+
 # ── campaigns ──
 
 def create_campaign(user_id, name, product, audience, platform, goal, daily_budget, days):
     platform, goal = platform.strip().lower(), goal.strip().lower()
+    name, product, audience = _text(name, "name"), _text(product, "product"), _text(audience, "audience")
+    daily_budget, days = _number(daily_budget, "Daily budget"), _number(days, "Days")
     if platform not in PLATFORMS:
         raise AdError(f"Unknown platform '{platform}'. Choose one of: {', '.join(PLATFORMS)}.")
     if goal not in GOALS:
         raise AdError(f"Unknown goal '{goal}'. Choose one of: {', '.join(sorted(GOALS))}.")
     if not 1 <= daily_budget <= MAX_DAILY_BUDGET:
         raise AdError(f"Daily budget must be between $1 and ${MAX_DAILY_BUDGET:,.0f}.")
-    if not 1 <= days <= 90:
-        raise AdError("Campaign length must be 1 to 90 days.")
+    if not 1 <= days <= 90 or days != int(days):
+        raise AdError("Campaign length must be 1 to 90 whole days.")
     cid = new_id("cmp")
     execute("INSERT INTO campaigns (id, user_id, name, product, audience, platform, goal, daily_budget, days, "
             "status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)",
@@ -85,8 +110,9 @@ def check_copy(headline, body, cta, platform):
         elif len(text) > limits[field]:
             problems.append(f"{field} is {len(text)} chars, {platform} allows {limits[field]}")
     full = f"{headline} {body} {cta}"
+    flat = normalize(full)   # catches "G u a r a n t e e d", zero-width tricks, full-width letters
     for pattern, why in BANNED:
-        if re.search(pattern, full, re.I):
+        if re.search(pattern, flat, re.I):
             problems.append(f"contains {why}")
     if sum(c.isupper() for c in full) > 0.5 * max(1, sum(c.isalpha() for c in full)):
         problems.append("too many capital letters")
@@ -109,6 +135,8 @@ def save_variants(user_id, campaign_id, variants):
         detail = "; ".join(f"variant {k}: {', '.join(p)}" for k, p in failures.items())
         raise AdError(f"Not saved, fix these first: {detail}")
     existing = len(query("SELECT id FROM variants WHERE campaign_id = ? AND user_id = ?", (campaign_id, user_id)))
+    if existing + len(variants) > MAX_VARIANTS:
+        raise AdError(f"A campaign can have at most {MAX_VARIANTS} variants ({existing} saved already).")
     saved = []
     for i, v in enumerate(variants):
         vid, label = new_id("var"), chr(65 + existing + i)   # A, B, C ... continuing on
@@ -138,6 +166,7 @@ def estimate(daily_budget, days, platform):
     platform = platform.strip().lower()
     if platform not in PLATFORMS:
         raise AdError(f"Unknown platform '{platform}'. Choose one of: {', '.join(PLATFORMS)}.")
+    daily_budget, days = _number(daily_budget, "Daily budget"), _number(days, "Days")
     if daily_budget <= 0 or days <= 0:
         raise AdError("Budget and days must be positive.")
     b = PLATFORMS[platform]
@@ -158,6 +187,9 @@ def estimate(daily_budget, days, platform):
 
 def record_results(user_id, variant_id, impressions, clicks, conversions, spend):
     get_variant(user_id, variant_id)
+    impressions, clicks, conversions, spend = (_number(x, n) for x, n in
+                                               zip((impressions, clicks, conversions, spend),
+                                                   ("Impressions", "Clicks", "Conversions", "Spend")))
     if min(impressions, clicks, conversions, spend) < 0:
         raise AdError("Numbers can't be negative.")
     if clicks > impressions or conversions > clicks:
