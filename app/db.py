@@ -56,7 +56,25 @@ CREATE TABLE IF NOT EXISTS results (
     recorded_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_results_user ON results(user_id);
+CREATE TABLE IF NOT EXISTS events (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
 """
+
+
+def log_event(user_id: str, kind: str, detail: str) -> None:
+    """Audit trail for the admin dashboard: blocked requests, tool calls, approvals.
+    Never raises: a logging failure must not break a customer's chat."""
+    try:
+        execute("INSERT INTO events (id, user_id, kind, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+                (new_id("evt"), user_id, kind, detail[:500], now()))
+    except Exception:
+        pass
 
 
 def new_id(prefix: str) -> str:
@@ -67,15 +85,32 @@ def now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
 
 
+_pool = None
+
+
+def _pg_pool():
+    """Opening a Postgres connection to Neon takes ~3 s (TLS + auth), so keep a few open and reuse them."""
+    global _pool
+    if _pool is None:
+        import atexit
+        from psycopg.rows import dict_row
+        from psycopg_pool import ConnectionPool
+        # autocommit: every call here is one statement, so skip BEGIN/COMMIT round trips (1 trip instead of 3).
+        # max_idle recycles connections before Neon's idle timeout; ToolRetryMiddleware covers a rare dropped one.
+        _pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=5, open=True, max_idle=240,
+                               kwargs={"row_factory": dict_row, "autocommit": True, "prepare_threshold": None})
+        atexit.register(_pool.close)
+    return _pool
+
+
 @contextmanager
 def connect():
     if IS_PG:
-        import psycopg
-        from psycopg.rows import dict_row
-        conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
-    else:
-        conn = sqlite3.connect(SQLITE_PATH)
-        conn.row_factory = sqlite3.Row
+        with _pg_pool().connection() as conn:   # commits on success, rolls back on error
+            yield conn
+        return
+    conn = sqlite3.connect(SQLITE_PATH)
+    conn.row_factory = sqlite3.Row
     try:
         yield conn
         conn.commit()
