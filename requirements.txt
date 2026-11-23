@@ -1,3 +1,6 @@
+langchain
 langchain-anthropic
 langgraph
 python-dotenv
+psycopg[binary]
+pytest
