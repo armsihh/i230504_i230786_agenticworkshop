@@ -7,6 +7,9 @@ import os
 import tempfile
 from pathlib import Path
 
+os.environ["LANGSMITH_TRACING"] = "false"   # fake-model test runs would flood LangSmith with junk traces
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 if os.getenv("TEST_PG") != "1":
     os.environ["DATABASE_URL"] = ""   # load_dotenv never overrides an existing variable, even an empty one
     os.environ["DOUBLEAADS_SQLITE"] = str(Path(tempfile.mkdtemp()) / "test.db")
