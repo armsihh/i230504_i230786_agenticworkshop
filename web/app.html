@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workspace · DoubleAAds</title>
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+<div class="glow glow-plum" aria-hidden="true"></div>
+<div class="glow glow-teal" aria-hidden="true"></div>
+
+<!-- sign in -->
+<div class="signin" id="signin" hidden>
+  <div class="signin-card glass slide-in">
+    <img src="assets/logo.svg" alt="" width="56" height="56" style="margin: 0 auto">
+    <h1>Welcome to DoubleAAds</h1>
+    <p class="muted" style="margin: 0">Your AI ad agency. Tell us your business name to start.</p>
+    <form id="signinForm" novalidate>
+      <label for="bizName">Business name</label>
+      <input id="bizName" class="field" maxlength="60" placeholder="Crumbs Bakery" autocomplete="organization">
+      <div class="error" id="signinErr" role="alert"></div>
+      <button class="btn btn-main" type="submit" id="signinBtn">Open my workspace <svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-arrow-right"></use></svg></button>
+    </form>
+    <p class="muted" style="font-size: 13px; margin: 18px 0 0"><a href="./">Back to home</a></p>
+  </div>
+</div>
+
+<!-- workspace -->
+<div class="shell" id="workspace" hidden>
+  <nav class="side" aria-label="Workspace">
+    <a href="./" class="side-btn" aria-label="DoubleAAds home"><img src="assets/logo.svg" alt="" width="40" height="40"></a>
+    <div class="spacer" style="height: 18px"></div>
+    <button class="side-btn on" id="newChatBtn" aria-label="New chat" title="New chat"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-plus"></use></svg></button>
+    <a href="#panel" class="side-btn" aria-label="Campaigns" title="Campaigns"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-megaphone"></use></svg></a>
+    <a href="dashboard.html" class="side-btn" aria-label="Metrics dashboard" title="Metrics"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-chart-column"></use></svg></a>
+    <button class="side-btn" id="signOutBtn" aria-label="Sign out" title="Sign out"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-log-out"></use></svg></button>
+    <div class="spacer" style="margin-top: auto"></div>
+    <div class="avatar" id="avatar" aria-hidden="true">DA</div>
+  </nav>
+
+  <main class="main">
+    <header class="main-head">
+      <div><div class="biz" id="bizTitle">Your business</div><div class="muted" style="font-size: 13px" id="chatLabel">New campaign chat</div></div>
+      <div class="agents-switch glass" aria-label="Active specialist">
+        <span data-agent="strategist">Strategist</span><span data-agent="copywriter">Copywriter</span><span data-agent="analyst">Analyst</span>
+      </div>
+    </header>
+
+    <div class="feed" id="feed" aria-live="polite"></div>
+
+    <div class="composer">
+      <div class="quick" id="quick">
+        <button class="glass" data-prompt="Plan an Instagram campaign: $15/day for 7 days, goal is sales.">Plan a campaign</button>
+        <button class="glass" data-prompt="Write 2 new ad variants for my latest campaign.">Write ads</button>
+        <button class="glass" data-prompt="Make a creative for variant A, warm theme.">Make a banner</button>
+        <button class="glass" data-prompt="Variant A: 4000 impressions, 160 clicks, 12 sales, $45 spent. Variant B: 4000 impressions, 90 clicks, 3 sales, $45 spent.">Share results</button>
+        <button class="glass" data-prompt="What would $25/day for 10 days buy on TikTok?">Estimate a budget</button>
+      </div>
+      <form class="input-row glass" id="chatForm">
+        <label for="msg" class="sr-only">Message DoubleAAds</label>
+        <input id="msg" maxlength="4000" autocomplete="off" placeholder="Tell me what you sell and what you'd like to advertise…">
+        <button class="send" type="submit" id="sendBtn" aria-label="Send"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-send"></use></svg></button>
+      </form>
+    </div>
+  </main>
+
+  <aside class="panel" id="panel" aria-label="Your campaigns">
+    <div id="campaignArea"></div>
+    <div class="panel-card glass">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2)"><svg class="icon icon-sm" style="color: var(--mint)" aria-hidden="true"><use href="assets/icons.svg#i-brain"></use></svg>Remembered about you</div>
+        <button class="link-btn" id="forgetBtn">Forget all</button>
+      </div>
+      <div class="facts" id="facts"><span class="muted" style="background: none; padding: 0">Nothing yet. Tell me about your brand.</span></div>
+    </div>
+  </aside>
+</div>
+
+<script src="assets/js/common.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
