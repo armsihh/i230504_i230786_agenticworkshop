@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metrics · DoubleAAds</title>
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  .dash { position: relative; z-index: 1; max-width: 1320px; margin: 0 auto; padding: 26px 32px 40px; }
+  .dash-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 24px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .stat { padding: 20px; }
+  .stat-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-3); }
+  .stat-top .icon { color: var(--mint); }
+  .stat-v { font-family: var(--display); font-size: 36px; font-weight: 600; margin-top: 8px; }
+  .stat-s { font-size: 12px; color: var(--text-3); }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+  .card { padding: 22px; min-width: 0; }
+  .card h2 { font-size: 18px; font-weight: 600; margin-bottom: 14px; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-2); flex-wrap: wrap; }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .ev { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+  .ev:last-child { border-bottom: 0; }
+  .ev-ic { flex: 0 0 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    background: rgba(152, 232, 222, 0.14); color: var(--mint); }
+  .ev-ic.warn { background: rgba(255, 184, 107, 0.16); color: var(--amber); }
+  .ev-t { font-size: 14px; } .ev-d { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+  .bar > div { height: 100%; border-radius: 999px; }
+  @media (max-width: 900px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .dash { padding: 16px; } .grid4 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="glow glow-plum" aria-hidden="true"></div>
+<div class="glow glow-teal" aria-hidden="true"></div>
+
+<div class="signin" id="gate" hidden>
+  <div class="signin-card glass slide-in">
+    <img src="assets/logo.svg" alt="" width="56" height="56" style="margin: 0 auto">
+    <h1>Admin metrics</h1>
+    <p class="muted" style="margin: 0">Enter the admin password to see every business, campaign and request.</p>
+    <form id="gateForm" novalidate>
+      <label for="pw">Admin password</label>
+      <input id="pw" class="field" type="password" autocomplete="current-password">
+      <div class="error" id="gateErr" role="alert"></div>
+      <button class="btn btn-main" type="submit" id="gateBtn">Open dashboard</button>
+    </form>
+    <p class="muted" style="font-size: 13px; margin: 18px 0 0"><a href="./">Back to home</a></p>
+  </div>
+</div>
+
+<div class="dash" id="dash" hidden>
+  <header class="dash-head">
+    <div style="display: flex; align-items: center; gap: 14px">
+      <a href="app.html" aria-label="Back to workspace"><img src="assets/logo.svg" alt="" width="40" height="40"></a>
+      <div><h1 style="font-size: 26px; font-weight: 600">Metrics</h1><div class="muted" style="font-size: 13px">Admin · all businesses</div></div>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+      <span class="pill" id="health" style="background: rgba(255,255,255,0.06); color: var(--text-3)"><span class="dot"></span>Checking API…</span>
+      <button class="btn btn-ghost btn-sm" id="refreshBtn"><svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-refresh-cw"></use></svg>Refresh</button>
+      <button class="btn btn-ghost btn-sm" id="lockBtn"><svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-lock"></use></svg>Lock</button>
+    </div>
+  </header>
+
+  <div class="grid4">
+    <div class="stat glass lift reveal"><div class="stat-top">Businesses<svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-store"></use></svg></div><div class="stat-v" id="sBiz">–</div><div class="stat-s">with at least one campaign</div></div>
+    <div class="stat glass lift reveal reveal-d1"><div class="stat-top">Campaigns live<svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-rocket"></use></svg></div><div class="stat-v" id="sLive">–</div><div class="stat-s" id="sDrafts">–</div></div>
+    <div class="stat glass glass-warn lift reveal reveal-d2"><div class="stat-top">Attacks blocked<svg class="icon" style="color: var(--amber)" aria-hidden="true"><use href="assets/icons.svg#i-shield-check"></use></svg></div><div class="stat-v" id="sBlocked" style="color: var(--amber)">–</div><div class="stat-s">at 0 tokens each</div></div>
+    <div class="stat glass lift reveal reveal-d3"><div class="stat-top">API cost today<svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-circle-dollar-sign"></use></svg></div><div class="stat-v" id="sCost">–</div>
+      <div class="bar" style="margin-top: 8px"><div id="capBar" class="grow-x" style="width: 0; background: var(--mint)"></div></div><div class="stat-s" id="sCap" style="margin-top: 6px">–</div></div>
+  </div>
+
+  <div class="row">
+    <div class="card glass reveal" style="flex: 2 1 560px">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px">
+        <h2 style="margin: 0">Chat requests and latency · 7 days</h2>
+        <div class="legend"><span><i class="sw" style="background: var(--teal)"></i>Requests</span><span><i class="sw" style="background: var(--amber); height: 3px; width: 14px"></i>Avg latency</span></div>
+      </div>
+      <div id="usageChart" style="min-height: 250px"></div>
+    </div>
+    <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <div class="card glass reveal reveal-d1"><h2>Campaigns by status</h2><div id="donut"></div></div>
+      <div class="card glass reveal reveal-d2"><h2>Tokens per chat</h2>
+        <div style="display: flex; align-items: baseline; gap: 10px"><span class="display" style="font-size: 30px; font-weight: 600" id="tokAvg">–</span><span class="muted" style="font-size: 13px">avg in · out</span></div>
+        <div style="display: flex; gap: 4px; margin-top: 12px; height: 10px" id="tokSplit"></div>
+        <div class="muted" style="font-size: 12px; margin-top: 8px" id="tokNote">Haiku 5.5 · $0.10 in / $0.50 out per million</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card glass reveal" style="flex: 1 1 520px"><h2>Recent events</h2><div id="events"></div></div>
+    <div class="card glass reveal reveal-d1" style="flex: 1 1 360px">
+      <h2 style="margin-bottom: 4px">Ad results recorded</h2>
+      <div class="muted" style="font-size: 13px; margin-bottom: 16px">Totals the owners shared with the analyst</div>
+      <div id="results" style="display: flex; flex-direction: column; gap: 14px"></div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/common.js"></script>
+<script src="assets/js/dashboard.js"></script>
+</body>
+</html>
