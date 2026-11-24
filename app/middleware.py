@@ -244,7 +244,10 @@ class AdPrompt(AgentMiddleware):
         task = state.get("handoff_task") or ""
         system = SystemMessage(build_prompt(self.role, facts, state.get("summary", ""), task))
         msgs = request.messages
-        just_received = task and msgs and msgs[-1].type == "tool" and msgs[-1].text.startswith(HANDOFF_RESULT)
+        # Just handed over: the history ends with the handoff tool's result, or (an automatic handoff from the
+        # graph) with the previous specialist's reply, which Claude can't continue without a user-side message
+        just_received = task and msgs and (
+            (msgs[-1].type == "tool" and msgs[-1].text.startswith(HANDOFF_RESULT)) or msgs[-1].type == "ai")
         if just_received:
             return request.override(system_message=system, messages=[*msgs, handoff_note(self.role, task)])
         return request.override(system_message=system)
