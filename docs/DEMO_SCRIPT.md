@@ -45,7 +45,7 @@ One continuous screen recording with voice-over. Every step uses the live site, 
 
 ## The GIF (for the README)
 
-`docs/demo.gif` was captured from a real session on the live site (landing page, sign-in, the strategist's
-clarifying question, two saved ads with banners, the analyst's A/B result, and the launch approval), so the
-video doesn't need to produce it. Upload the full video to YouTube (unlisted) or Google Drive (anyone with the
+`docs/demo.gif` was captured from a real session with Claude on a local copy of the deployed code (landing page,
+creating an account, a multi-line request, two saved ads with banners in one turn, the analyst's A/B result,
+the launch approval, and logging out), so the video doesn't need to produce it. Upload the full video to YouTube (unlisted) or Google Drive (anyone with the
 link) for the submission; raw video files in `docs/` are ignored by git.
