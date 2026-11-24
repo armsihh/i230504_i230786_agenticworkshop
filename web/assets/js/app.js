@@ -219,6 +219,16 @@
     box.style.overflowY = box.scrollHeight > 5 * 24 + 4 ? "auto" : "hidden";
   }
   $("msg").addEventListener("input", autosize);
+  // Resizing the window (or the panels) changes how the text wraps, so re-measure when the box's width changes
+  if ("ResizeObserver" in window) {
+    let lastWidth = 0;
+    new ResizeObserver(([entry]) => {
+      const w = Math.round(entry.contentRect.width);
+      if (w !== lastWidth) { lastWidth = w; autosize(); }
+    }).observe($("msg"));
+  } else {
+    window.addEventListener("resize", autosize);
+  }
   $("msg").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("chatForm").requestSubmit(); }
   });
@@ -301,10 +311,32 @@
     }));
   }
 
+  // Facts captured from campaigns carry a prefix ("Advertises on: instagram"); show it as a small label so a
+  // bare "$20" or "instagram" never appears without context. Free-form notes from the remember tool: "Note".
+  const FACT_LABELS = [
+    [/^Sells:\s*/i, "Sells"], [/^Target audience:\s*/i, "Audience"], [/^Advertises on:\s*/i, "Platform"],
+    [/^Typical daily budget:\s*/i, "Budget"], [/^Last A\/B winner was\s*/i, "Last winner"],
+  ];
+  const PLATFORM_NAMES = { instagram: "Instagram", meta: "Meta", tiktok: "TikTok", linkedin: "LinkedIn", google_search: "Google Search" };
+
+  function labelFact(fact) {
+    for (const [re, label] of FACT_LABELS) {
+      if (re.test(fact)) {
+        let value = fact.replace(re, "");
+        if (label === "Platform") value = PLATFORM_NAMES[value.toLowerCase()] || value;
+        if (label === "Budget") value += " / day";
+        return { label, value };
+      }
+    }
+    return { label: "Note", value: fact };
+  }
+
   function renderFacts(facts) {
-    $("facts").innerHTML = facts.length
-      ? facts.map((f) => `<span class="slide-in">${esc(f.replace(/^(Sells|Target audience|Advertises on|Typical daily budget): /, ""))}</span>`).join("")
-      : `<span class="muted" style="background: none; padding: 0">Nothing yet. Tell me about your brand.</span>`;
+    const order = ["Sells", "Audience", "Platform", "Budget", "Last winner", "Note"];
+    const items = facts.map(labelFact).sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
+    $("facts").innerHTML = items.length
+      ? items.map((f) => `<div class="fact slide-in"><span class="fact-l">${esc(f.label)}</span>${esc(f.value)}</div>`).join("")
+      : `<span class="muted">Nothing yet. Tell me about your brand.</span>`;
   }
 
   $("forgetBtn").addEventListener("click", async () => {
