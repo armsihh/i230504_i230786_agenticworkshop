@@ -73,6 +73,13 @@ CREATE TABLE IF NOT EXISTS usage (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_usage_created ON usage(created_at);
+CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    business_name TEXT NOT NULL,
+    pw_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """
 
 

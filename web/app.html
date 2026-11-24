@@ -7,7 +7,7 @@
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="stylesheet" href="assets/css/app.css">
 </head>
@@ -19,13 +19,23 @@
 <div class="signin" id="signin" hidden>
   <div class="signin-card glass slide-in">
     <img src="assets/logo.svg" alt="" width="56" height="56" style="margin: 0 auto">
-    <h1>Welcome to DoubleAAds</h1>
-    <p class="muted" style="margin: 0">Your AI ad agency. Tell us your business name to start.</p>
+    <h1 id="authTitle">Welcome back</h1>
+    <p class="muted" style="margin: 0" id="authSub">Log in to your AI ad agency.</p>
+    <div class="auth-tabs" role="tablist" aria-label="Log in or create an account">
+      <button type="button" role="tab" id="tabLogin" aria-selected="true">Log in</button>
+      <button type="button" role="tab" id="tabSignup" aria-selected="false">Create account</button>
+    </div>
     <form id="signinForm" novalidate>
-      <label for="bizName">Business name</label>
-      <input id="bizName" class="field" maxlength="60" placeholder="Crumbs Bakery" autocomplete="organization">
+      <div id="bizRow" hidden>
+        <label for="bizName">Business name</label>
+        <input id="bizName" class="field" maxlength="60" placeholder="Crumbs Bakery" autocomplete="organization">
+      </div>
+      <label for="username">Username</label>
+      <input id="username" class="field" maxlength="30" placeholder="crumbs" autocomplete="username" autocapitalize="none" spellcheck="false">
+      <label for="password">Password</label>
+      <input id="password" class="field" type="password" maxlength="128" autocomplete="current-password" placeholder="At least 8 characters">
       <div class="error" id="signinErr" role="alert"></div>
-      <button class="btn btn-main" type="submit" id="signinBtn">Open my workspace <svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-arrow-right"></use></svg></button>
+      <button class="btn btn-main" type="submit" id="signinBtn"><span id="signinLabel">Log in</span> <svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-arrow-right"></use></svg></button>
     </form>
     <p class="muted" style="font-size: 13px; margin: 18px 0 0"><a href="./">Back to home</a></p>
   </div>
@@ -64,7 +74,7 @@
       </div>
       <form class="input-row glass" id="chatForm">
         <label for="msg" class="sr-only">Message DoubleAAds</label>
-        <input id="msg" maxlength="4000" autocomplete="off" placeholder="Tell me what you sell and what you'd like to advertise…">
+        <textarea id="msg" rows="1" maxlength="4000" placeholder="Tell me what you sell and what you'd like to advertise…"></textarea>
         <button class="send" type="submit" id="sendBtn" aria-label="Send"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-send"></use></svg></button>
       </form>
     </div>

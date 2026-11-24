@@ -36,6 +36,28 @@ def read_token(token: str) -> str | None:
     return None
 
 
+# ── passwords: scrypt (memory-hard, standard library), random salt per user, constant-time compare ──
+_SCRYPT = {"n": 2 ** 14, "r": 8, "p": 1, "dklen": 32}
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, **_SCRYPT)
+    return f"scrypt${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        _, salt_hex, digest_hex = stored.split("$")
+        digest = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt_hex), **_SCRYPT)
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    except (ValueError, TypeError):
+        return False
+
+
+DUMMY_HASH = hash_password(secrets.token_urlsafe(12))   # verify against this for unknown users: same timing
+
+
 def creative_sig(variant_id: str) -> str:
     return sign("creative:" + variant_id)[:16]
 

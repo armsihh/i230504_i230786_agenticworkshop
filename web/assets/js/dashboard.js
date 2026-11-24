@@ -78,7 +78,7 @@
     $("donut").innerHTML = `<div style="display: flex; align-items: center; gap: 22px">
       <svg ${svgNS} width="120" height="120" viewBox="0 0 42 42" role="img" aria-label="${parts.map((p) => `${p[0]} ${p[1]}`).join(", ")}">
         <circle cx="21" cy="21" r="15.9" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"/>${rings}
-        <text x="21" y="23.5" fill="#F4EEFB" font-size="8" text-anchor="middle" font-family="Space Grotesk, sans-serif">${total}</text></svg>
+        <text x="21" y="23.5" fill="#F4EEFB" font-size="8" text-anchor="middle" font-family="Poppins, sans-serif">${total}</text></svg>
       <div style="display: flex; flex-direction: column; gap: 10px; font-size: 14px">
         ${parts.map(([l, n, c]) => `<span style="display: flex; align-items: center; gap: 8px"><i class="sw" style="background: ${c}"></i>${l} · ${n}</span>`).join("")}
       </div></div>`;

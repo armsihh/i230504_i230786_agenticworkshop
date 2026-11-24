@@ -15,8 +15,8 @@
   --glass: rgba(255, 255, 255, 0.06);
   --glass-line: rgba(255, 255, 255, 0.12);
   --radius: 20px;
-  --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --display: "Space Grotesk", var(--font);
+  --font: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display: "Poppins", var(--font);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -25,7 +25,8 @@
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.5;
   -webkit-font-smoothing: antialiased; overflow-x: hidden; }
-h1, h2, h3, .display { font-family: var(--display); letter-spacing: -0.03em; margin: 0; }
+h1, h2, h3, .display { font-family: var(--display); letter-spacing: -0.02em; margin: 0; }
+.btn, .badge, .pill, .eyebrow, .logo-text { font-family: var(--display); }
 a { color: var(--mint); }
 a:hover { color: var(--mint-soft); }
 button, input { font: inherit; color: inherit; }

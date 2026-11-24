@@ -30,8 +30,8 @@ from app.context import AdContext, thread_key
 from app.creatives import SIZES, THEMES, render_svg
 from app.db import execute, new_id, now, query
 from app.memory import get_store, list_facts, namespace
-from app.security import (ID_PATTERN, RateLimiter, creative_sig, is_admin, make_token, read_token,
-                          thread_lock)
+from app.security import (DUMMY_HASH, ID_PATTERN, RateLimiter, creative_sig, hash_password, is_admin,
+                          make_token, read_token, thread_lock, verify_password)
 
 log = logging.getLogger("doubleaads")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -40,6 +40,7 @@ PRICE_IN, PRICE_OUT = 0.10 / 1e6, 0.50 / 1e6            # claude-haiku-5-5, USD 
 DAILY_BUDGET_USD = float(os.getenv("DAILY_BUDGET_USD", "0.50"))
 chat_limiter = RateLimiter(limit=int(os.getenv("CHAT_RATE_PER_MIN", "20")), window_s=60)
 session_limiter = RateLimiter(limit=10, window_s=60)
+auth_limiter = RateLimiter(limit=10, window_s=60)   # login/signup attempts per IP
 
 graph = None
 
@@ -73,6 +74,20 @@ class WebChatIn(BaseModel):
 
 class SessionIn(BaseModel):
     business_name: str = Field(min_length=1, max_length=60)
+
+
+class SignupIn(BaseModel):   # validated by hand below, so errors read as plain sentences
+    username: str = Field(max_length=200)
+    password: str = Field(max_length=500)
+    business_name: str = Field(max_length=200)
+
+
+class LoginIn(BaseModel):
+    username: str = Field(max_length=200)
+    password: str = Field(max_length=500)
+
+
+USERNAME = re.compile(r"^[a-z0-9_.-]{3,30}$")
 
 
 def _error(status: int, reply: str) -> JSONResponse:
@@ -195,6 +210,45 @@ def create_session(body: SessionIn, request: Request):
     slug = re.sub(r"[^a-z0-9]+", "-", body.business_name.lower()).strip("-")[:30] or "biz"
     user_id = f"biz_{slug}_{uuid.uuid4().hex[:6]}"
     return {"user_id": user_id, "token": make_token(user_id), "business_name": body.business_name}
+
+
+def _account(user: dict) -> dict:
+    return {"user_id": user["user_id"], "token": make_token(user["user_id"]), "username": user["username"],
+            "business_name": user["business_name"]}
+
+
+@app.post("/api/signup")
+def signup(body: SignupIn, request: Request):
+    if not auth_limiter.allow(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "Too many attempts. Please wait a minute.")
+    username, name = body.username.strip().lower(), body.business_name.strip()
+    if not USERNAME.match(username):
+        raise HTTPException(400, "Username must be 3 to 30 characters: letters, numbers, dots, dashes or underscores.")
+    if not 8 <= len(body.password) <= 128:
+        raise HTTPException(400, "Password must be 8 to 128 characters.")
+    if not 1 <= len(name) <= 60:
+        raise HTTPException(400, "Business name must be 1 to 60 characters.")
+    if query("SELECT username FROM users WHERE username = ?", (username,)):
+        raise HTTPException(409, "That username is taken. Try another or log in.")
+    user = {"username": username, "user_id": f"acct_{username}", "business_name": name}
+    try:
+        execute("INSERT INTO users (username, user_id, business_name, pw_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+                (username, user["user_id"], name, hash_password(body.password), now()))
+    except Exception:   # two sign-ups racing for the same name
+        raise HTTPException(409, "That username is taken. Try another or log in.")
+    return _account(user)
+
+
+@app.post("/api/login")
+def login(body: LoginIn, request: Request):
+    if not auth_limiter.allow(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "Too many attempts. Please wait a minute.")
+    rows = query("SELECT * FROM users WHERE username = ?", (body.username.strip().lower(),))
+    # Always run one hash check, so a wrong username takes as long as a wrong password
+    ok = verify_password(body.password, rows[0]["pw_hash"] if rows else DUMMY_HASH)
+    if not rows or not ok:
+        raise HTTPException(401, "Wrong username or password.")
+    return _account(rows[0])
 
 
 @app.post("/api/chat")

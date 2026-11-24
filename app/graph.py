@@ -168,8 +168,10 @@ def _campaign_needing_ads(state: AdState) -> str | None:
     return that campaign's id so the graph hands it to the copywriter itself."""
     if state.get("handoffs", 0) >= MAX_HANDOFFS:
         return None
-    human = next((m for m in state["messages"] if m.id == state.get("turn_id")), None)
-    if human is None or not WANTS_ADS.search(human.text):
+    # The ads request may sit one message back, before the strategist's clarifying question
+    # ("Make 2 ads, $20/day" -> "Who's the audience?" -> "Families in Islamabad")
+    humans = [m for m in state["messages"] if isinstance(m, HumanMessage)][-2:]
+    if not any(WANTS_ADS.search(m.text) for m in humans):
         return None
     turn = _turn_messages(state)
     if any(c["name"] == "save_ad_variants" for m in turn if isinstance(m, AIMessage) for c in m.tool_calls):
