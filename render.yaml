@@ -1,0 +1,29 @@
+# Render Blueprint: one free Python web service in Virginia, next to the Neon database (us-east-1).
+services:
+  - type: web
+    name: doubleaads-api
+    runtime: python
+    plan: free
+    region: virginia
+    buildCommand: pip install -r requirements.txt
+    # One worker on purpose: the rate limiter and per-chat locks live in process memory.
+    startCommand: uvicorn app.api:app --host 0.0.0.0 --port $PORT --workers 1 --proxy-headers --forwarded-allow-ips "*"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: DAILY_BUDGET_USD
+        value: "0.50"
+      - key: LANGSMITH_TRACING
+        value: "false"
+      - key: LANGSMITH_PROJECT
+        value: doubleaads
