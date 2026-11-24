@@ -195,3 +195,28 @@ def test_admin_requires_password(monkeypatch):
 def test_admin_disabled_when_no_password_set(monkeypatch):
     monkeypatch.setattr(security, "ADMIN_PASSWORD", "")
     assert client.get("/api/admin/overview", headers={"X-Admin-Password": ""}).status_code == 401
+
+
+def test_model_outage_is_a_polite_503_not_a_leaked_error(monkeypatch):
+    """Live bug on Render: the retry middleware's default turned an outage into a 200 reply with the raw error."""
+    from langchain.messages import AIMessage as _AI
+
+    class Down(ScriptedModel):
+        def _generate(self, *a, **k):
+            raise ConnectionError("Connection error.")
+    from langgraph.checkpoint.memory import InMemorySaver
+    from langgraph.store.memory import InMemoryStore
+    from app.graph import build_graph
+    api.graph = build_graph(model=Down(messages=iter([_AI("x")])), checkpointer=InMemorySaver(),
+                            store=InMemoryStore(), prompt_caching=False)
+    api._spend_cache.update(at=0.0, usd=0.0)
+    r = ask("api-down", "t1", "plan a campaign")
+    assert r.status_code == 503 and set(r.json()) == {"reply", "tool_calls", "tokens"}
+    assert "Connection error" not in r.text and "attempts" not in r.text
+
+
+def test_spend_check_failure_does_not_500(monkeypatch):
+    use(usage_msg("ok"))
+    monkeypatch.setattr(api, "spent_today_usd", lambda: (_ for _ in ()).throw(RuntimeError("db down")))
+    r = ask("api-spend", "t1", "plan a campaign")
+    assert r.status_code == 503 and set(r.json()) == {"reply", "tool_calls", "tokens"}

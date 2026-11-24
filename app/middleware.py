@@ -282,7 +282,9 @@ def build_middleware(role: str = "strategist", prompt_caching: bool = True):
         from langchain_anthropic.middleware import AnthropicPromptCachingMiddleware
         stack.append(AnthropicPromptCachingMiddleware(unsupported_model_behavior="ignore"))
     stack += [
-        ModelRetryMiddleware(max_retries=2, initial_delay=1.0),
+        # on_failure="error": a model outage must fail the turn (the API answers 503 politely),
+        # not come back as a normal reply containing the raw error text (the default)
+        ModelRetryMiddleware(max_retries=2, initial_delay=1.0, on_failure="error"),
         ModelCallLimitMiddleware(run_limit=6, exit_behavior="end"),
         ToolCallLimitMiddleware(run_limit=10),
         ToolCallLimitMiddleware(tool_name="launch_campaign", run_limit=1),
