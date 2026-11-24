@@ -11,3 +11,7 @@ docs/*.mp4
 docs/*.mov
 docs/*.mkv
 .claude/
+
+# Personal notes, kept locally
+docs/DEMO_SCRIPT.md
+docs/SUBMISSION_ANSWERS.md
