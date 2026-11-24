@@ -169,7 +169,11 @@ def get_model():
     from langchain_anthropic import ChatAnthropic
     from app.context import MODEL_ID
     # effort=low: fewer thinking tokens; these tasks are short and tool-driven. max_tokens caps every reply.
-    return ChatAnthropic(model=MODEL_ID, max_tokens=1024, output_config={"effort": "low"},
+    import os
+    # Strip stray whitespace/quotes: a pasted key with a trailing newline breaks the HTTP header,
+    # which the SDK reports as a confusing "Connection error".
+    key = os.getenv("ANTHROPIC_API_KEY", "").strip().strip('"').strip("'")
+    return ChatAnthropic(model=MODEL_ID, api_key=key or None, max_tokens=1024, output_config={"effort": "low"},
                          max_retries=2, default_request_timeout=45)
 
 

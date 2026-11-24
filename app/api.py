@@ -153,9 +153,9 @@ def guarded_turn(request: Request, user_id: str, thread_id: str, message: str):
     client = request.client.host if request.client else "unknown"
     if not chat_limiter.allow(client):
         return None, _error(429, "You're sending messages too fast. Please wait a minute.")
-    if spent_today_usd() >= DAILY_BUDGET_USD:
-        return None, _error(503, "The demo has reached today's usage limit. Please try again tomorrow.")
     try:
+        if spent_today_usd() >= DAILY_BUDGET_USD:
+            return None, _error(503, "The demo has reached today's usage limit. Please try again tomorrow.")
         return run_turn(user_id, thread_id, message), None
     except HTTPException as e:
         return None, _error(e.status_code, str(e.detail))
