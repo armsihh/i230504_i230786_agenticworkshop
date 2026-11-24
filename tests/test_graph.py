@@ -224,3 +224,24 @@ def test_launch_without_variants_fails_before_asking_for_money():
     out = chat(agent, "launch it", user="g-empty", thread="empty-launch")
     assert "__interrupt__" not in out
     assert "at least one ad variant" in next(m for m in out["messages"] if isinstance(m, ToolMessage)).text
+
+
+def test_campaign_plus_ads_request_always_reaches_the_copywriter():
+    """Benchmark bug (T01): the strategist created the campaign and stopped. The graph now hands off in code."""
+    args = dict(name="Glow", product="Soy candles", audience="Women 25-40", platform="instagram",
+                goal="sales", daily_budget=15, days=7)
+    agent = make_agent(call("create_campaign", args), AIMessage("Campaign drafted."),          # strategist stops
+                       call("list_campaigns", {}, cid="lc"), AIMessage("Here are your 2 ads."))  # copywriter
+    out = chat(agent, "Make 2 Instagram ads for my candles, $15/day for a week", user="g-auto", thread="auto")
+    assert state(agent, "auto")["active_agent"] == "copywriter"
+    assert out["messages"][-1].text == "Here are your 2 ads."
+    note = ScriptedModel.inputs[2][-1]
+    assert isinstance(note, HumanMessage) and "You are the copywriter now" in note.text
+
+
+def test_no_auto_handoff_when_ads_were_not_asked_for():
+    args = dict(name="Glow", product="Soy candles", audience="Women", platform="instagram",
+                goal="sales", daily_budget=15, days=7)
+    agent = make_agent(call("create_campaign", args), AIMessage("Campaign drafted."))
+    chat(agent, "Create a campaign for my candles, $15/day for a week", user="g-noauto", thread="noauto")
+    assert state(agent, "noauto")["active_agent"] == "strategist" and ScriptedModel.calls == 2

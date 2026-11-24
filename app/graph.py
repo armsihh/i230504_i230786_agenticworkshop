@@ -158,9 +158,42 @@ def finalize(state: AdState, runtime: Runtime[AdContext]) -> dict | None:
     return update or None
 
 
+WANTS_ADS = re.compile(r"\b(ads?|adverts?|advertisements?|variants?|creatives?|banners?|headlines?|ad copy)\b", re.I)
+CREATED = re.compile(r"Created draft campaign (cmp_[0-9a-f]+)")
+
+
+def _campaign_needing_ads(state: AdState) -> str | None:
+    """Benchmarked bug: asked for "a campaign AND ads", the strategist sometimes created the campaign and stopped
+    without handing off. If the owner asked for ads, a campaign was created this turn and no ads were saved,
+    return that campaign's id so the graph hands it to the copywriter itself."""
+    if state.get("handoffs", 0) >= MAX_HANDOFFS:
+        return None
+    human = next((m for m in state["messages"] if m.id == state.get("turn_id")), None)
+    if human is None or not WANTS_ADS.search(human.text):
+        return None
+    turn = _turn_messages(state)
+    if any(c["name"] == "save_ad_variants" for m in turn if isinstance(m, AIMessage) for c in m.tool_calls):
+        return None
+    created = [CREATED.search(m.text) for m in turn if isinstance(m, ToolMessage)]
+    return next((m.group(1) for m in reversed(created) if m), None)
+
+
 def after_specialist(state: AdState) -> str:
-    """A handoff tool set next_agent: go back to the router. Otherwise the turn is done."""
-    return "router" if state.get("next_agent") else "finalize"
+    """A handoff tool set next_agent: back to the router. A campaign that still needs the ads the owner asked
+    for: hand it to the copywriter (in code, not left to the model). Otherwise the turn is done."""
+    if state.get("next_agent"):
+        return "router"
+    if state.get("active_agent") == "strategist" and _campaign_needing_ads(state):
+        return "auto_handoff"
+    return "finalize"
+
+
+def auto_handoff(state: AdState) -> Command[Literal["router"]]:
+    cid = _campaign_needing_ads(state)
+    return Command(goto="router", update={
+        "next_agent": "copywriter",
+        "handoff_task": f"The owner asked for ads. Write 2 ad variants with different angles for campaign {cid} "
+                        "and save them with save_ad_variants, then show them."})
 
 
 # ── build ──
@@ -187,7 +220,8 @@ def build_graph(model=None, checkpointer=None, store=None, prompt_caching: bool 
         agent = create_agent(model, tools=ROLE_TOOLS[role], middleware=build_middleware(role, prompt_caching),
                              state_schema=SpecialistState, context_schema=AdContext, name=role)
         g.add_node(role, agent)
-        g.add_conditional_edges(role, after_specialist, ["router", "finalize"])
+        g.add_conditional_edges(role, after_specialist, ["router", "auto_handoff", "finalize"])
+    g.add_node("auto_handoff", auto_handoff)
     g.add_node("finalize", finalize)
     g.add_edge(START, "guard")
     g.add_edge("trim", "router")
