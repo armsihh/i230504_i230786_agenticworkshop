@@ -5,3 +5,9 @@ __pycache__/
 doubleaads.db
 .pytest_cache/
 .hypothesis/
+
+# Raw demo recordings (upload to YouTube/Drive instead)
+docs/*.mp4
+docs/*.mov
+docs/*.mkv
+.claude/

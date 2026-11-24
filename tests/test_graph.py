@@ -245,3 +245,17 @@ def test_no_auto_handoff_when_ads_were_not_asked_for():
     agent = make_agent(call("create_campaign", args), AIMessage("Campaign drafted."))
     chat(agent, "Create a campaign for my candles, $15/day for a week", user="g-noauto", thread="noauto")
     assert state(agent, "noauto")["active_agent"] == "strategist" and ScriptedModel.calls == 2
+
+
+def test_ads_request_before_a_clarifying_question_still_gets_ads():
+    """Found while recording the demo: "Make 2 ads" -> strategist asks the audience -> owner answers ->
+    campaign created but no ads, because the ads request was one message back."""
+    args = dict(name="Crumbs", product="Sourdough", audience="Families in Islamabad", platform="instagram",
+                goal="sales", daily_budget=20, days=7)
+    agent = make_agent(AIMessage("Who should see the ads?"),                                   # turn 1: question
+                       call("create_campaign", args), AIMessage("Campaign drafted."),          # turn 2: strategist
+                       call("list_campaigns", {}, cid="lc"), AIMessage("Here are your 2 ads."))  # copywriter
+    chat(agent, "Make 2 Instagram ads for my bakery, $20/day for 7 days", user="g-clarify", thread="clarify")
+    out = chat(agent, "Families and young professionals in Islamabad.", user="g-clarify", thread="clarify")
+    assert state(agent, "clarify")["active_agent"] == "copywriter"
+    assert out["messages"][-1].text == "Here are your 2 ads."

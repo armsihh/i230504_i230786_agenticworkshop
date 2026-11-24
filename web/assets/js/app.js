@@ -28,27 +28,53 @@
   function showSignin() {
     $("workspace").hidden = true;
     $("signin").hidden = false;
-    $("bizName").focus();
+    setMode("login");   // after logging out, people come back to log in, not to sign up again
   }
+
+  // ── log in / create account ──
+  let mode = "login";
+  function setMode(next) {
+    mode = next;
+    const signup = mode === "signup";
+    $("tabLogin").setAttribute("aria-selected", String(!signup));
+    $("tabSignup").setAttribute("aria-selected", String(signup));
+    $("bizRow").hidden = !signup;
+    $("authTitle").textContent = signup ? "Create your account" : "Welcome back";
+    $("authSub").textContent = signup ? "Your AI ad team is ready in seconds." : "Log in to your AI ad agency.";
+    $("signinLabel").textContent = signup ? "Create account" : "Log in";
+    $("password").autocomplete = signup ? "new-password" : "current-password";
+    $("signinErr").textContent = "";
+    (signup ? $("bizName") : $("username")).focus();
+  }
+  $("tabLogin").addEventListener("click", () => setMode("login"));
+  $("tabSignup").addEventListener("click", () => setMode("signup"));
 
   $("signinForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const name = $("bizName").value.trim();
-    if (!name) { $("signinErr").textContent = "Enter your business name to continue."; return; }
-    $("signinErr").textContent = "";
+    const username = $("username").value.trim(), password = $("password").value, name = $("bizName").value.trim();
+    const fail = (msg) => { $("signinErr").textContent = msg; };
+    if (mode === "signup" && !name) return fail("Enter your business name.");
+    if (!username) return fail("Enter a username.");
+    if (mode === "signup" && !/^[A-Za-z0-9_.-]{3,30}$/.test(username))
+      return fail("Usernames are 3 to 30 characters: letters, numbers, dots, dashes or underscores.");
+    if (!password) return fail("Enter your password.");
+    if (mode === "signup" && password.length < 8) return fail("Use a password of at least 8 characters.");
+    fail("");
     $("signinBtn").disabled = true;
     try {
-      session = await api("/api/session", { method: "POST", body: { business_name: name }, timeoutMs: 75000 });
+      const body = mode === "signup" ? { username, password, business_name: name } : { username, password };
+      session = await api(mode === "signup" ? "/api/signup" : "/api/login", { method: "POST", body, timeoutMs: 75000 });
       store.set("daa.session", session);
       store.del("daa.thread");
+      $("password").value = "";
       showWorkspace();
     } catch (err) {
-      $("signinErr").textContent = err.message;
+      fail(err.message);
     } finally {
       $("signinBtn").disabled = false;
     }
   });
-  $("bizName").addEventListener("input", () => { $("signinErr").textContent = ""; });
+  ["username", "password", "bizName"].forEach((id) => $(id).addEventListener("input", () => { $("signinErr").textContent = ""; }));
 
   $("signOutBtn").addEventListener("click", () => {
     store.del("daa.session"); store.del("daa.thread"); session = null; showSignin();
@@ -185,16 +211,28 @@
     }
   }
 
+  // The message box grows with the text up to 5 lines, then scrolls. Enter sends, Shift+Enter adds a line.
+  function autosize() {
+    const box = $("msg");
+    box.style.height = "auto";
+    box.style.height = Math.min(box.scrollHeight, 5 * 24 + 4) + "px";
+    box.style.overflowY = box.scrollHeight > 5 * 24 + 4 ? "auto" : "hidden";
+  }
+  $("msg").addEventListener("input", autosize);
+  $("msg").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("chatForm").requestSubmit(); }
+  });
   $("chatForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const text = $("msg").value.trim();
     if (!text) return;
     $("msg").value = "";
+    autosize();
     send(text);
   });
   $("quick").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-prompt]");
-    if (b) { $("msg").value = b.dataset.prompt; $("msg").focus(); }
+    if (b) { $("msg").value = b.dataset.prompt; autosize(); $("msg").focus(); }
   });
 
   // ── right panel: campaigns, creatives, A/B, memory ──

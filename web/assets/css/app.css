@@ -49,10 +49,16 @@ body { min-height: 100vh; }
 .quick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .quick button { padding: 8px 14px; border-radius: 999px; font-size: 13px; color: var(--text-2); cursor: pointer; transition: all 0.2s; }
 .quick button:hover { color: var(--mint); border-color: rgba(152, 232, 222, 0.4); }
-.input-row { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 20px; border-radius: 999px; transition: border-color 0.2s; }
+/* chips and the message box share the same left edge and inner padding, so their text lines up */
+.quick { padding: 0; }
+.quick button { font-family: var(--display); }
+.input-row { display: flex; align-items: flex-end; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 22px; transition: border-color 0.2s; }
 .input-row:focus-within { border-color: rgba(152, 232, 222, 0.6); }
-.input-row input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; font-size: 15px; padding: 8px 0; }
-.input-row input::placeholder { color: var(--text-4); }
+.input-row textarea { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; font-size: 15px;
+  line-height: 24px; padding: 10px 0; margin: 0; resize: none; overflow-y: hidden; max-height: calc(5 * 24px + 4px);
+  font-family: var(--font); color: var(--text); }
+.input-row textarea::placeholder { color: var(--text-4); }
+.input-row textarea::-webkit-scrollbar { width: 6px; } .input-row textarea::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 6px; }
 .send { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--mint); color: var(--bg-2);
   display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s var(--ease); }
 .send:hover { transform: scale(1.08); } .send[disabled] { opacity: 0.5; cursor: wait; transform: none; }
@@ -73,7 +79,7 @@ body { min-height: 100vh; }
 .camp-tabs button { padding: 6px 12px; border-radius: 999px; font-size: 12px; cursor: pointer; color: var(--text-2); }
 .camp-tabs button.on { background: var(--mint); color: var(--bg-2); border-color: var(--mint); }
 .facts { display: flex; flex-wrap: wrap; gap: 8px; }
-.facts span { padding: 7px 12px; border-radius: 999px; background: rgba(152, 232, 222, 0.12); font-size: 13px; }
+.facts span { padding: 8px 12px; border-radius: 12px; background: rgba(152, 232, 222, 0.12); font-size: 13px; line-height: 1.45; }
 .empty { text-align: center; padding: 28px 18px; color: var(--text-3); font-size: 14px; }
 .empty .icon { width: 36px; height: 36px; color: var(--mint); margin-bottom: 10px; }
 .link-btn { background: none; border: 0; color: var(--text-3); font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0; }
@@ -84,7 +90,13 @@ body { min-height: 100vh; }
 .signin-card { width: 100%; max-width: 440px; padding: 40px; text-align: center; }
 .signin-card h1 { font-size: 30px; font-weight: 600; margin: 20px 0 8px; }
 .signin-card form { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; text-align: left; }
-.signin-card label { font-size: 14px; color: var(--text-2); }
+.signin-card label { font-size: 14px; color: var(--text-2); margin-top: 4px; }
+#bizRow { display: flex; flex-direction: column; gap: 12px; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-top: 22px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-line); }
+.auth-tabs button { padding: 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-3); cursor: pointer;
+  font-family: var(--display); font-size: 14px; font-weight: 500; transition: background 0.25s, color 0.25s; }
+.auth-tabs button[aria-selected="true"] { background: var(--mint); color: var(--bg-2); }
 
 @media (max-width: 980px) {
   .main, .panel { height: auto; }
