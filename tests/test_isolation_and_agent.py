@@ -29,24 +29,24 @@ def victim():
     return c["id"], v["id"]
 
 
-ID_TOOL_CALLS = [
-    ("list_ad_variants", lambda c, v: {"campaign_id": c}),
-    ("save_ad_variants", lambda c, v: {"campaign_id": c, "variants": [GOOD]}),
-    ("make_creative", lambda c, v: {"variant_id": v}),
-    ("record_results", lambda c, v: {"variant_id": v, "impressions": 10, "clicks": 1, "conversions": 0, "spend": 1}),
-    ("analyze_ab_test", lambda c, v: {"campaign_id": c}),
-    ("launch_campaign", lambda c, v: {"campaign_id": c}),
+ID_TOOL_CALLS = [   # (tool, args, a message the router sends to the specialist that owns the tool)
+    ("list_ad_variants", lambda c, v: {"campaign_id": c}, "show me the ad variants"),
+    ("save_ad_variants", lambda c, v: {"campaign_id": c, "variants": [GOOD]}, "save these ad variants"),
+    ("make_creative", lambda c, v: {"variant_id": v}, "make a banner for it"),
+    ("record_results", lambda c, v: {"variant_id": v, "impressions": 10, "clicks": 1, "conversions": 0, "spend": 1},
+     "record these results: 10 impressions"),
+    ("analyze_ab_test", lambda c, v: {"campaign_id": c}, "analyze the a/b test"),
+    ("launch_campaign", lambda c, v: {"campaign_id": c}, "launch the campaign"),
 ]
 
-
-@pytest.mark.parametrize("tool, args", ID_TOOL_CALLS, ids=[t for t, _ in ID_TOOL_CALLS])
-def test_attacker_cannot_use_victims_ids_through_any_tool(victim, tool, args):
+@pytest.mark.parametrize("tool, args, text", ID_TOOL_CALLS, ids=[t for t, _, _ in ID_TOOL_CALLS])
+def test_attacker_cannot_use_victims_ids_through_any_tool(victim, tool, args, text):
     cid, vid = victim
     agent = make_agent(call(tool, args(cid, vid)), AIMessage("done"))
-    out = chat(agent, "do it", user="iso-attacker", thread=f"atk-{tool}")
+    out = chat(agent, text, user="iso-attacker", thread=f"atk-{tool}")
     assert "__interrupt__" not in out                       # never even reaches the launch approval
     tool_msg = next(m for m in out["messages"] if m.type == "tool")
-    assert tool_msg.text.startswith("Error:"), tool_msg.text
+    assert "found in your account" in tool_msg.text, tool_msg.text   # the isolation check, not "unknown tool"
     assert "Secret launch" not in tool_msg.text and "Stay warm" not in tool_msg.text
     # and nothing about the victim changed
     assert ads.get_campaign("iso-victim", cid)["status"] == "draft"

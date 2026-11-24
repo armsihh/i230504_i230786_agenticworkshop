@@ -257,11 +257,16 @@ def analyze(user_id, campaign_id):
     return report
 
 
-def launch(user_id, campaign_id):
+def check_launchable(user_id, campaign_id):
     camp = get_campaign(user_id, campaign_id)
     if camp["status"] == "active":
         raise AdError("This campaign is already running.")
     if not list_variants(user_id, campaign_id):
         raise AdError("Add at least one ad variant before launching.")
+    return camp
+
+
+def launch(user_id, campaign_id):
+    camp = check_launchable(user_id, campaign_id)
     set_status(user_id, campaign_id, "active")
     return camp

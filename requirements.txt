@@ -1,8 +1,11 @@
-langchain
-langchain-anthropic
-langgraph
-python-dotenv
-psycopg[binary]
-psycopg-pool
-pytest
-hypothesis
+# Runtime (what Render installs). Pinned so the deployed build matches what was tested.
+langchain==1.5.2
+langchain-core==1.8.4
+langchain-anthropic==1.7.12
+langgraph==1.2.24
+langgraph-checkpoint-postgres==3.2.1
+psycopg[binary]==3.3.9
+psycopg-pool==3.3.3
+fastapi==0.165.0
+uvicorn[standard]==0.54.0
+python-dotenv==1.2.4

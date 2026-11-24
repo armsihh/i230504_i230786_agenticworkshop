@@ -64,6 +64,15 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
+CREATE TABLE IF NOT EXISTS usage (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    tokens_in INTEGER NOT NULL,
+    tokens_out INTEGER NOT NULL,
+    latency_ms INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_usage_created ON usage(created_at);
 """
 
 
@@ -88,7 +97,7 @@ def now() -> str:
 _pool = None
 
 
-def _pg_pool():
+def pg_pool():
     """Opening a Postgres connection to Neon takes ~3 s (TLS + auth), so keep a few open and reuse them."""
     global _pool
     if _pool is None:
@@ -97,7 +106,7 @@ def _pg_pool():
         from psycopg_pool import ConnectionPool
         # autocommit: every call here is one statement, so skip BEGIN/COMMIT round trips (1 trip instead of 3).
         # max_idle recycles connections before Neon's idle timeout; ToolRetryMiddleware covers a rare dropped one.
-        _pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=5, open=True, max_idle=240,
+        _pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=10, open=True, max_idle=240,
                                kwargs={"row_factory": dict_row, "autocommit": True, "prepare_threshold": None})
         atexit.register(_pool.close)
     return _pool
@@ -106,7 +115,7 @@ def _pg_pool():
 @contextmanager
 def connect():
     if IS_PG:
-        with _pg_pool().connection() as conn:   # commits on success, rolls back on error
+        with pg_pool().connection() as conn:   # commits on success, rolls back on error
             yield conn
         return
     conn = sqlite3.connect(SQLITE_PATH)

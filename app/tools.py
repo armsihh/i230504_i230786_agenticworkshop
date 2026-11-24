@@ -8,11 +8,14 @@ import json
 import re
 
 from langchain.tools import ToolRuntime, tool
-from langgraph.types import interrupt
+from langchain.messages import ToolMessage
+from langgraph.types import Command, interrupt
 from pydantic import BaseModel, Field
 
 from app import ads
 from app.context import AdContext
+from app.memory import remember
+from app.security import creative_sig
 from app.textnorm import normalize
 
 
@@ -108,7 +111,8 @@ def make_creative(variant_id: str, runtime: ToolRuntime[AdContext], size: str = 
     theme: bold, fresh, minimal or warm. Returns a link the website shows."""
     def run():
         v = ads.get_variant(_uid(runtime), variant_id)
-        return f"Creative ready: /creatives/{v['id']}.svg?size={size}&theme={theme}"
+        sig = creative_sig(v["id"])   # signed link: only someone given the URL can open it
+        return f"Creative ready: /creatives/{v['id']}.svg?size={size}&theme={theme}&sig={sig}"
     return _safe(run)
 
 
@@ -137,10 +141,10 @@ def launch_campaign(campaign_id: str, runtime: ToolRuntime[AdContext]) -> str:
     """Launch a campaign so it starts spending money. Always pauses for the owner's explicit approval first."""
     def run():
         uid = _uid(runtime)
-        c = ads.get_campaign(uid, campaign_id)
+        c = ads.check_launchable(uid, campaign_id)   # fail BEFORE asking: never ask to approve the impossible
         total = c["daily_budget"] * c["days"]
         # Code enforces the approval: the run pauses here until the API resumes it with the owner's answer
-        answer = interrupt({"action": "launch_campaign", "campaign_id": campaign_id,
+        answer = interrupt({"action": "launch_campaign", "args": {"campaign_id": campaign_id},
                             "question": f"Launch '{c['name']}' on {c['platform']}? It will spend up to "
                                         f"${c['daily_budget']:.0f}/day for {c['days']} days (${total:,.0f} total). "
                                         f"Reply yes to confirm."})
@@ -151,8 +155,35 @@ def launch_campaign(campaign_id: str, runtime: ToolRuntime[AdContext]) -> str:
     return _safe(run)
 
 
-CAMPAIGN_TOOLS = [create_campaign, list_campaigns, estimate_budget, launch_campaign]
-COPY_TOOLS = [check_ad_copy, save_ad_variants, list_ad_variants, make_creative]
-ANALYST_TOOLS = [record_results, analyze_ab_test, list_ad_variants]
-ALL_TOOLS = [*CAMPAIGN_TOOLS, check_ad_copy, save_ad_variants, list_ad_variants, make_creative,
-             record_results, analyze_ab_test]
+# ── handoffs between specialists ──
+# A handoff ends this agent's run and records next_agent; app/graph.py routes it back to the router.
+# The router enforces the handoff limit, so two agents can't bounce a task back and forth forever.
+
+def _handoff(target: str, role_description: str):
+    @tool(f"transfer_to_{target}", description=(
+        f"Hand this chat to the {target} ({role_description}). Call it ALONE, not alongside other tools. "
+        "task: one line saying what they should do."))
+    def handoff(task: str, runtime: ToolRuntime[AdContext]) -> Command:
+        done = ToolMessage(f"Handed to the {target}.", tool_call_id=runtime.tool_call_id)
+        # No goto: the parent graph's conditional edge sees next_agent and routes to the router.
+        # (A goto here would ALSO fire the static edge to finalize, running both branches at once.)
+        return Command(graph=Command.PARENT,
+                       update={"messages": [*runtime.state["messages"], done], "next_agent": target,
+                               "handoff_task": task})
+    return handoff
+
+
+to_strategist = _handoff("strategist", "creates, estimates and launches campaigns")
+to_copywriter = _handoff("copywriter", "writes and saves ad copy variants, makes creatives")
+to_analyst = _handoff("analyst", "records results and runs A/B analysis")
+
+
+STRATEGIST_TOOLS = [create_campaign, list_campaigns, estimate_budget, launch_campaign, remember,
+                    to_copywriter, to_analyst]
+COPYWRITER_TOOLS = [list_campaigns, list_ad_variants, check_ad_copy, save_ad_variants, make_creative, remember,
+                    to_strategist, to_analyst]
+ANALYST_TOOLS = [list_campaigns, list_ad_variants, record_results, analyze_ab_test, remember,
+                 to_copywriter, to_strategist]
+ALL_TOOLS = [create_campaign, list_campaigns, estimate_budget, launch_campaign, check_ad_copy, save_ad_variants,
+             list_ad_variants, make_creative, record_results, analyze_ab_test, remember]
+ROLE_TOOLS = {"strategist": STRATEGIST_TOOLS, "copywriter": COPYWRITER_TOOLS, "analyst": ANALYST_TOOLS}

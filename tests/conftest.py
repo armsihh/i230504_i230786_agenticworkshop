@@ -15,34 +15,39 @@ if os.getenv("TEST_PG") != "1":
     os.environ["DOUBLEAADS_SQLITE"] = str(Path(tempfile.mkdtemp()) / "test.db")
 
 
-# ── shared helpers: a scripted fake model, so agent tests cost nothing ──
-from langchain.agents import create_agent  # noqa: E402
+# ── shared helpers: the real graph with a scripted fake model, so agent tests cost nothing ──
 from langchain.messages import AIMessage  # noqa: E402
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel  # noqa: E402
 from langgraph.checkpoint.memory import InMemorySaver  # noqa: E402
+from langgraph.store.memory import InMemoryStore  # noqa: E402
 
 from app.context import AdContext  # noqa: E402
-from app.middleware import build_middleware  # noqa: E402
-from app.tools import ALL_TOOLS  # noqa: E402
+from app.graph import build_graph  # noqa: E402
 
 
 class ScriptedModel(GenericFakeChatModel):
-    """Replies with the given messages in order; counts calls so tests can prove the model was skipped."""
+    """Replies with the given messages in order (shared by all specialists); counts calls."""
     calls: int = 0
+    inputs: list = []   # the messages each call received (system prompt first), to check memory
 
     def bind_tools(self, tools, **kwargs):
         return self
 
-    def _generate(self, *args, **kwargs):
+    def _generate(self, messages, *args, **kwargs):
+        # Same rule as the real Claude API: a request must not end on an assistant message (no prefill)
+        assert not isinstance(messages[-1], AIMessage), "model called with history ending in an AI message"
         type(self).calls += 1
-        return super()._generate(*args, **kwargs)
+        type(self).inputs.append(messages)
+        return super()._generate(messages, *args, **kwargs)
 
 
-def make_agent(*replies, middleware=None):
+def make_agent(*replies, store=None):
+    """The full DoubleAAds graph (guard, trim, router, 3 specialists, finalize) on a scripted model."""
     ScriptedModel.calls = 0
+    ScriptedModel.inputs = []
     model = ScriptedModel(messages=iter(replies))
-    return create_agent(model, tools=ALL_TOOLS, middleware=build_middleware() if middleware is None else middleware,
-                        context_schema=AdContext, checkpointer=InMemorySaver())
+    return build_graph(model=model, checkpointer=InMemorySaver(), store=store or InMemoryStore(),
+                       prompt_caching=False)
 
 
 def chat(agent, text, user="mw-alice", thread="t1"):
